@@ -1,0 +1,44 @@
+# Copy to config.yaml (git-ignored) and put your real numbers in.
+# On GitHub Actions the whole file goes in the SCOUT_CONFIG_YAML secret,
+# so your budgets never appear in this public repo.
+
+zip_code: "00000"          # US shipping is quoted to this ZIP
+
+caps:                       # USD
+  set_400:                  # a 400% figure, or a 100%+400% set (companion 100% is free)
+    us: 50                  # ships from US: price + shipping
+    us_ebay_best_offer: 60  # eBay US Buy It Now with Best Offer: price + shipping
+    us_mercari: 60          # Mercari US (any listing): price + shipping
+    intl: 40                # ships from outside US: item price only
+  loose_100_each:           # per loose 100% piece
+    us: 2                   # price + shipping, split per piece
+    intl: 1                 # item price only
+  figure_1000:
+    us: 200                 # price + shipping
+    intl: null              # null = don't want 1000% from outside the US
+
+# Listings whose TITLE contains any of these are skipped.
+exclude_keywords: [junk, ジャンク, broken, damaged, 破損, custom, カスタム, fake, replica, bootleg,
+  empty box, box only, 空箱, 箱のみ, keychain, キーホルダー, poster, sticker, ステッカー,
+  t-shirt, tシャツ, hoodie, パーカー, parts, パーツ]
+
+sources:
+  ebay:
+    enabled: true
+    pages: 1                # 200 newest listings per query
+    queries: ["bearbrick 400%", "be@rbrick 400%", "bearbrick 1000%", "bearbrick 100% lot", "bearbrick 100% 400%"]
+  mercari_us:
+    enabled: true
+    queries: ["bearbrick 400%", "bearbrick 1000%", "bearbrick lot"]
+  buyee_yahoo:              # Yahoo Auctions Japan
+    enabled: true
+    pages: 1
+    queries: ["ベアブリック 400%", "be@rbrick 400%", "ベアブリック 100% まとめ"]
+  buyee_mercari:            # Mercari Japan
+    enabled: true
+    pages: 1
+    queries: ["ベアブリック 400%", "be@rbrick 400%", "ベアブリック 100% まとめ"]
+
+db_path: data/scout.db
+report_path: out/report.html
+max_detail_fetches: 60      # detail pages per site per run (keeps runs short)
