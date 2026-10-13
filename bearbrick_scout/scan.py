@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
@@ -16,6 +17,8 @@ from .store import Store
 from .textparse import analyze, is_relevant
 
 log = logging.getLogger("scout")
+
+DETAIL_CONCURRENCY = 4
 
 
 @dataclass
@@ -55,7 +58,7 @@ def _merge_cached(listing: Listing, cached: Listing | None) -> None:
 async def _enrich(listing: Listing, ebay_client, browser_ctx, mercari_ctx) -> None:
     try:
         if listing.source is Source.EBAY:
-            ebay.enrich(ebay_client, listing)
+            await asyncio.to_thread(ebay.enrich, ebay_client, listing)
         elif listing.source in (Source.BUYEE_YAHOO, Source.BUYEE_MERCARI):
             await buyee.enrich(browser_ctx, listing)
         elif listing.source is Source.MERCARI_US and mercari_ctx is not None:
@@ -104,7 +107,8 @@ async def run_scan(cfg: Config) -> ScanResult:
             await home.close()
 
         for run in runs:
-            fetched = 0
+            # Phase 1: cheap title-only judgement, pick which listings need a detail fetch.
+            todo: list[Listing] = []
             for listing in run.listings:
                 if not is_relevant(_analysis_text(listing)):
                     continue
@@ -112,12 +116,26 @@ async def run_scan(cfg: Config) -> ScanResult:
                 contents = analyze(_analysis_text(listing), listing.description, cfg.exclude_keywords)
                 if (
                     not listing.detail_loaded
-                    and fetched < cfg.max_detail_fetches
+                    and len(todo) < cfg.max_detail_fetches
                     and could_match(listing, contents, cfg.caps)
                 ):
+                    todo.append(listing)
+
+            # Phase 2: fetch detail pages a few at a time (one at a time on Mercari US,
+            # which is quick to show a bot check).
+            sem = asyncio.Semaphore(1 if run.name == Source.MERCARI_US.label else DETAIL_CONCURRENCY)
+
+            async def fetch(listing: Listing) -> None:
+                async with sem:
                     await _enrich(listing, ebay_client, ctx, mercari_ctx)
-                    fetched += 1
-                    contents = analyze(_analysis_text(listing), listing.description, cfg.exclude_keywords)
+
+            await asyncio.gather(*(fetch(l) for l in todo))
+
+            # Phase 3: final judgement with everything we know.
+            for listing in run.listings:
+                if not is_relevant(_analysis_text(listing)):
+                    continue
+                contents = analyze(_analysis_text(listing), listing.description, cfg.exclude_keywords)
                 verdict = evaluate(listing, contents, cfg.caps)
                 if not listing.detail_loaded and verdict.status is not Status.REJECT:
                     verdict.status = Status.REVIEW

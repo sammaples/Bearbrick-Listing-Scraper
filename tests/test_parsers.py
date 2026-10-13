@@ -103,3 +103,16 @@ def test_ebay_mapping():
                                "shippingOptions": [{"shippingCostType": "CALCULATED"}]})
     assert auction.listing_type is ListingType.AUCTION and auction.price_usd == 41.0
     assert auction.shipping_usd is None
+
+
+def test_buyee_condition_layouts():
+    yahoo = '<li class="itemDetail__list"><div class="itemDetail__listName">Item Condition</div>' \
+            '<div class="itemDetail__listValue">A little damaged/dirty</div></li>'
+    assert buyee.parse_yahoo_detail(yahoo)["condition"] == "A little damaged/dirty"
+    mer = '<dl class="m-goodsTable"><dt>Brand</dt><dd>x</dd><dt>Item Condition</dt><dd><a>New/Unused</a></dd></dl>'
+    assert buyee.parse_mercari_detail(mer)["condition"] == "New/Unused"
+
+
+def test_truncated_original_title_dropped():
+    assert buyee._distinct_original("BE@RBRICK 100%", "BE@RBRICK 100% 400% SPIDER-MAN") is None
+    assert buyee._distinct_original("ベアブリック 400%", "Bearbrick 400%") == "ベアブリック 400%"

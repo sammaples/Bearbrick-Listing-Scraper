@@ -27,6 +27,15 @@ def _usd(fx_text: str) -> float | None:
     return float(m.group(1).replace(",", "")) if m else None
 
 
+def _distinct_original(original: str | None, title: str) -> str | None:
+    """The untranslated title, unless it's just (a truncated copy of) the title."""
+    if not original:
+        return None
+    norm = lambda t: re.sub(r"\s+", " ", t).strip()
+    o, t = norm(original), norm(title)
+    return None if t.startswith(o) or o == t else original
+
+
 def yahoo_search_url(query: str, page: int = 1) -> str:
     url = f"{BASE}/item/search/query/{urllib.parse.quote(query)}"
     return url if page == 1 else f"{url}?page={page}"
@@ -69,7 +78,7 @@ def parse_yahoo_search(html: str) -> list[Listing]:
                 source_id=m.group(1),
                 url=urllib.parse.urljoin(BASE, href.split("?")[0]),
                 title=name,
-                title_original=original if original and original != name else None,
+                title_original=_distinct_original(original, name),
                 price_usd=usd,
                 shipping_usd=None,
                 ships_from="JP",
@@ -105,7 +114,7 @@ def parse_mercari_search(html: str) -> list[Listing]:
                 source_id=m.group(1),
                 url=f"{BASE}/mercari/item/{m.group(1)}",
                 title=name,
-                title_original=original if original and original != name else None,
+                title_original=_distinct_original(original, name),
                 price_usd=usd,
                 shipping_usd=None,
                 ships_from="JP",
@@ -118,8 +127,8 @@ def parse_mercari_search(html: str) -> list[Listing]:
 
 
 def _label_value(tree: LexborHTMLParser, label: str) -> str | None:
-    """Finds "<x class=g-title>Item Condition</x> <y>value</y>"-style pairs."""
-    for node in tree.css(".g-title, dt, th, .title, h4"):
+    """Finds label/value pairs: <div listName>Item Condition</div><div>value</div>, <dt>/<dd>."""
+    for node in tree.css(".itemDetail__listName, .g-title, dt, th"):
         if _text(node).lower() == label.lower():
             sib = node.next
             while sib is not None and not _text(sib):

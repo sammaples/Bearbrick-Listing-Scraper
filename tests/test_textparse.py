@@ -76,3 +76,13 @@ def test_relevance():
     assert is_relevant("BE＠RBRICK 400％")
     assert is_relevant("ベアブリック")
     assert not is_relevant("KAWS companion 20cm")
+
+
+def test_two_piece_set_count_is_the_set_itself():
+    c = a("メディコムトイ ベアブリック ハイウェイマン 400% 100% 2体セット")
+    assert (c.sets_400, c.loose_100, c.confident) == (1, 0, True)
+
+
+def test_plus_n_items_are_extras_not_more_400s():
+    c = a("BE@RBRICK 400%スパイダーマンHappyくじSP賞TYPE-A➕3点")
+    assert c.sets_400 == 1 and not c.confident

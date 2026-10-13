@@ -39,6 +39,8 @@ SETS_QTY_RE = re.compile(rf"(?<![\d.])(\d{{1,3}})\s*{SET_UNITS}\b|{SET_UNITS}\s*
 GENERIC_QTY_RE = re.compile(
     rf"(?:lot|bundle|set)\s+of\s+(\d{{1,3}})\b|(?<![\d.%])(\d{{1,3}})\s*{PIECE_UNITS}"
 )
+# "+3点", "➕3 items": extra things of unknown kind, not more of the same figure.
+EXTRAS_RE = re.compile(r"[+➕&]\s*(?:\d{1,3}\s*(?:点|items?|個|pcs|pieces)|others?|おまけ|付属品)")
 BULK_RE = re.compile(r"\blot\b|bundle|assorted|まとめ|大量|セット売り|複数")
 SERIES_RE = re.compile(r"series\s*\d+|シリーズ\s*\d+")
 
@@ -127,7 +129,8 @@ def analyze(title: str, description: str | None, exclude_keywords: list[str]) ->
     # ("also selling a 1000%"), which would corrupt the counts.
     sizes = _sizes(t_title)
     qty = _size_quantities(t_title)
-    generic_qty = _first_int(GENERIC_QTY_RE.findall(t_title))
+    extras = bool(EXTRAS_RE.search(t_title))
+    generic_qty = None if extras else _first_int(GENERIC_QTY_RE.findall(t_title))
     sets_qty = _first_int(SETS_QTY_RE.findall(t_title))
     bulk = bool(BULK_RE.search(t_title))
     is_set = bool(SET_RE.search(t_title))
@@ -144,6 +147,9 @@ def analyze(title: str, description: str | None, exclude_keywords: list[str]) ->
     if is_set:
         # A 100% packaged with its 400% adds nothing; count the sets only.
         c.sets_400 = qty.get(400) or sets_qty or 1
+        if qty.get(100) == 2 * c.sets_400:
+            # "400% 100% 2体セット": the count is the set's own pieces.
+            del qty[100]
         extra_100 = qty.get(100, 0) - c.sets_400
         c.loose_100 = max(extra_100, 0)
         c.figures_1000 = qty.get(1000, 1) if 1000 in sizes else 0
@@ -176,6 +182,9 @@ def analyze(title: str, description: str | None, exclude_keywords: list[str]) ->
         c.confident = False
         c.notes.append("mixed sizes: counts need checking")
 
+    if extras:
+        c.confident = False
+        c.notes.append("listing includes extra items of unknown kind")
     if not c.confident:
         c.notes.append("piece count unclear")
     return c

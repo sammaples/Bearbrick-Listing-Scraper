@@ -1,0 +1,90 @@
+name: Hourly scan
+
+on:
+  schedule:
+    - cron: "7 * * * *"   # every hour at :07 (GitHub may start it a few minutes late)
+  workflow_dispatch:       # "Run workflow" button for a manual scan
+
+concurrency:
+  group: scan
+  cancel-in-progress: false
+
+permissions:
+  contents: write          # to save the listing history on the `data` branch
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SCOUT_CONFIG_YAML: ${{ secrets.SCOUT_CONFIG_YAML }}
+      EBAY_CLIENT_ID: ${{ secrets.EBAY_CLIENT_ID }}
+      EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
+      SCRAPER_PROXY: ${{ secrets.SCRAPER_PROXY }}
+      SCOUT_DATA_KEY: ${{ secrets.SCOUT_DATA_KEY }}
+      PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+      PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+      # This repo is public, so its Actions logs are too: print counts only.
+      SCOUT_PUBLIC_LOG: "1"
+    steps:
+      - name: Check settings secret
+        id: gate
+        run: |
+          if [ -z "$SCOUT_CONFIG_YAML" ] || [ -z "$SCOUT_DATA_KEY" ]; then
+            echo "SCOUT_CONFIG_YAML / SCOUT_DATA_KEY secrets not set yet; skipping scan."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.skip != 'true'
+
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.skip != 'true'
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Cache browser
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Restore listing history
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          mkdir -p data
+          # History is stored encrypted: the data branch of a public repo is public.
+          if git fetch origin data --depth=1 2>/dev/null; then
+            git show origin/data:scout.db.enc > "$RUNNER_TEMP/scout.db.enc" &&
+              openssl enc -d -aes-256-cbc -pbkdf2 -pass env:SCOUT_DATA_KEY \
+                -in "$RUNNER_TEMP/scout.db.enc" -out data/scout.db ||
+              { echo "No readable history; starting fresh."; rm -f data/scout.db; }
+          fi
+
+      - name: Scan
+        if: steps.gate.outputs.skip != 'true'
+        run: python -m bearbrick_scout
+
+      - name: Save listing history
+        if: steps.gate.outputs.skip != 'true' && always()
+        run: |
+          [ -f data/scout.db ] || exit 0
+          tmp=$(mktemp -d)
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:SCOUT_DATA_KEY \
+            -in data/scout.db -out "$tmp/scout.db.enc"
+          cd "$tmp"
+          git init -q -b data
+          git config user.name "scout-bot"
+          git config user.email "scout-bot@users.noreply.github.com"
+          git add scout.db.enc
+          git commit -qm "Listing history after run ${{ github.run_number }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" data
+          # Force-pushing a single commit keeps the branch from growing forever.

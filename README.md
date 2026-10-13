@@ -53,10 +53,28 @@ for every option.
 | `CHROMIUM_PATH` | use a specific Chromium binary |
 | `SCRAPER_PROXY` | route the browser through a proxy if a site blocks datacenter IPs |
 
+## Hourly runs on GitHub Actions
+
+`.github/workflows/scan.yml` runs every hour (and on demand from the Actions
+tab). It skips quietly until these repository secrets exist
+(Settings → Secrets and variables → Actions → New repository secret):
+
+| Secret | Value |
+|---|---|
+| `SCOUT_CONFIG_YAML` | the full contents of your `config.yaml` |
+| `SCOUT_DATA_KEY` | any long random password; encrypts the saved listing history |
+| `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET` | eBay keys (optional until approved) |
+| `PUSHOVER_APP_TOKEN`, `PUSHOVER_USER_KEY` | Pushover alerts (optional) |
+| `SCRAPER_PROXY` | optional proxy URL if Mercari US blocks GitHub's servers |
+
+This repo is public, and so are its Actions logs, so the workflow prints only
+counts; listing history is stored encrypted on the `data` branch, and results
+reach you through Pushover (and later the private app), never the logs.
+
 ## Roadmap
 
 1. ✅ Scanners + budget rules + report
 2. Photo checks (box visible, piece counts) with Claude vision
-3. Hourly GitHub Actions schedule
-4. Private home-screen app + Pushover alerts
+3. ✅ Hourly GitHub Actions schedule + Pushover alerts
+4. Private home-screen app
 5. Approve-to-buy
