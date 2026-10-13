@@ -24,7 +24,9 @@ def main() -> None:
     cfg = load_config(args.config)
     result = asyncio.run(run_scan(cfg))
     path = write_report(result, cfg.report_path)
-    alerts = send_alerts(result.new)
+    alerted = send_alerts(result.alerts)
+    result.store.mark_notified(alerted)
+    alerts = len(alerted)
 
     if public_log:
         for s in result.sources:

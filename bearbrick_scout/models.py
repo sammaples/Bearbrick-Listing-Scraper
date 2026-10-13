@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 
 
@@ -51,13 +52,22 @@ class Listing:
     image_urls: list[str] = field(default_factory=list)
     description: str | None = None
     bid_count: int | None = None
-    ends_at: str | None = None  # ISO timestamp or human text ("5 hour(s)")
+    ends_at: str | None = None  # ISO 8601 UTC timestamp
     seller: str | None = None
     detail_loaded: bool = False
 
     @property
     def key(self) -> str:
         return f"{self.source.value}:{self.source_id}"
+
+    def hours_left(self, now: datetime | None = None) -> float | None:
+        if not self.ends_at:
+            return None
+        try:
+            end = datetime.fromisoformat(self.ends_at.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return (end - (now or datetime.now(timezone.utc))).total_seconds() / 3600
 
     @property
     def in_us(self) -> bool:

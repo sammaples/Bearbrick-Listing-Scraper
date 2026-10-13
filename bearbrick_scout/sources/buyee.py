@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import urllib.parse
+from datetime import datetime, timedelta, timezone
 
 from selectolax.lexbor import LexborHTMLParser
 
@@ -34,6 +35,20 @@ def _distinct_original(original: str | None, title: str) -> str | None:
     norm = lambda t: re.sub(r"\s+", " ", t).strip()
     o, t = norm(original), norm(title)
     return None if t.startswith(o) or o == t else original
+
+
+REMAINING_RE = re.compile(r"(\d+)\s*(day|hour|minute|min|second|sec)", re.I)
+
+
+def ends_at_from_remaining(text: str | None, now: datetime | None = None) -> str | None:
+    """Buyee shows "Time Remaining: 5 hour(s)" / "2 day(s)"; turn it into a UTC timestamp."""
+    m = REMAINING_RE.search(text or "")
+    if not m:
+        return None
+    unit = m.group(2).lower()
+    seconds = int(m.group(1)) * {"day": 86400, "hour": 3600, "minute": 60, "min": 60}.get(unit, 1)
+    end = (now or datetime.now(timezone.utc)) + timedelta(seconds=seconds)
+    return end.isoformat(timespec="minutes")
 
 
 def yahoo_search_url(query: str, page: int = 1) -> str:
@@ -86,7 +101,7 @@ def parse_yahoo_search(html: str) -> list[Listing]:
                 price_original=_text(price_node) or None,
                 image_urls=[img.attributes.get("src")] if img and img.attributes.get("src") else [],
                 bid_count=int(bids) if bids and bids.isdigit() else None,
-                ends_at=info.get("Time Remaining"),
+                ends_at=ends_at_from_remaining(info.get("Time Remaining")),
             )
         )
     return out

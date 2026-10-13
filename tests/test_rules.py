@@ -97,3 +97,16 @@ def test_could_match_is_optimistic_but_prunes_obvious_rejects():
     assert could_match(L(price=99, ship=None), C(sets=1, box="unknown"), CAPS)
     assert not could_match(L(price=150, ship=None), C(sets=1), CAPS)
     assert could_match(L(price=150, ship=None), C(loose=1, confident=False), CAPS)
+
+
+def test_auction_alerts_only_near_the_end():
+    from datetime import datetime, timedelta, timezone
+
+    from bearbrick_scout.scan import alert_due
+
+    soon = L(kind=ListingType.AUCTION)
+    soon.ends_at = (datetime.now(timezone.utc) + timedelta(hours=5)).isoformat()
+    later = L(kind=ListingType.AUCTION)
+    later.ends_at = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
+    assert alert_due(soon, 12) and not alert_due(later, 12)
+    assert alert_due(L(), 12)  # Buy It Now alerts right away

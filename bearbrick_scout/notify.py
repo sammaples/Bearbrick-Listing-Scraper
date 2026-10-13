@@ -1,6 +1,6 @@
 """Pushover alerts for new matches (needs PUSHOVER_APP_TOKEN + PUSHOVER_USER_KEY).
 
-One alert per new listing, with its first photo, up to MAX_INDIVIDUAL; beyond
+One alert per listing, with its first photo, up to MAX_INDIVIDUAL; beyond
 that a single summary alert so a big first run doesn't spam the phone.
 """
 
@@ -49,13 +49,14 @@ def _image(http: httpx.Client, url: str | None) -> tuple[str, bytes, str] | None
     return None
 
 
-def send_alerts(new: list[Judged]) -> int:
+def send_alerts(new: list[Judged]) -> list[str]:
+    """Sends alerts; returns the keys of listings that were alerted."""
     token, user = os.environ.get("PUSHOVER_APP_TOKEN"), os.environ.get("PUSHOVER_USER_KEY")
     if not (token and user) or not new:
-        return 0
+        return []
     # Clear matches first, then needs-a-look; cheapest relative to cap first.
     new = sorted(new, key=lambda j: (j.verdict.status is not Status.MATCH, (j.verdict.total_usd or 0) / (j.verdict.cap_usd or 1)))
-    sent = 0
+    sent: list[str] = []
     with httpx.Client(timeout=20) as http:
         for j in new[:MAX_INDIVIDUAL]:
             title, message = _message(j)
@@ -64,7 +65,7 @@ def send_alerts(new: list[Judged]) -> int:
             img = _image(http, (j.listing.image_urls or [None])[0])
             r = http.post(API, data=data, files={"attachment": img} if img else None)
             if r.status_code == 200:
-                sent += 1
+                sent.append(j.listing.key)
             else:
                 log.warning("Pushover rejected an alert: HTTP %s", r.status_code)
         rest = new[MAX_INDIVIDUAL:]
@@ -73,5 +74,6 @@ def send_alerts(new: list[Judged]) -> int:
             r = http.post(API, data={"token": token, "user": user,
                                      "title": f"+{len(rest)} more new listings",
                                      "message": "\n".join(lines)[:1024]})
-            sent += r.status_code == 200
+            if r.status_code == 200:
+                sent += [j.listing.key for j in rest]
     return sent

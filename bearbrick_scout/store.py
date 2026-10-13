@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS listings (
     listing_json TEXT NOT NULL,
     contents_json TEXT,
     verdict_json TEXT,
-    user_state TEXT  -- reserved for the app: pursue / dismiss
+    user_state TEXT,  -- reserved for the app: pursue / dismiss
+    notified_at TEXT  -- when an alert went out; cleared if it drops out of budget
 );
 CREATE INDEX IF NOT EXISTS listings_status ON listings(status);
 """
@@ -48,6 +49,9 @@ class Store:
         self.db = sqlite3.connect(path)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        cols = {r["name"] for r in self.db.execute("PRAGMA table_info(listings)")}
+        if "notified_at" not in cols:  # databases from before alerts existed
+            self.db.execute("ALTER TABLE listings ADD COLUMN notified_at TEXT")
 
     def start_run(self) -> int:
         cur = self.db.execute("INSERT INTO runs(started_at) VALUES (?)", (_now(),))
@@ -92,8 +96,19 @@ class Store:
         if status in ACTIVE and prev not in ACTIVE:
             return "new"
         if prev in ACTIVE and status not in ACTIVE:
+            # So it alerts again if it comes back within budget.
+            self.db.execute("UPDATE listings SET notified_at=NULL WHERE key=?", (listing.key,))
+            self.db.commit()
             return "dropped"
         return None
+
+    def was_notified(self, key: str) -> bool:
+        row = self.db.execute("SELECT notified_at FROM listings WHERE key=?", (key,)).fetchone()
+        return bool(row and row["notified_at"])
+
+    def mark_notified(self, keys: list[str]) -> None:
+        self.db.executemany("UPDATE listings SET notified_at=? WHERE key=?", [(_now(), k) for k in keys])
+        self.db.commit()
 
     def active(self) -> list[sqlite3.Row]:
         return self.db.execute(

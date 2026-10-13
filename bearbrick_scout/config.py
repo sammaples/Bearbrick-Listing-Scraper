@@ -41,6 +41,7 @@ class Config:
     db_path: str = "data/scout.db"
     report_path: str = "out/report.html"
     max_detail_fetches: int = 60  # per source per run, keeps runs short
+    auction_alert_hours: float = 12  # alert on auctions only once they end within this
 
 
 def _source(raw: dict | None) -> SourceConfig:
@@ -74,6 +75,7 @@ def parse_config(data: dict) -> Config:
         db_path=data.get("db_path", "data/scout.db"),
         report_path=data.get("report_path", "out/report.html"),
         max_detail_fetches=int(data.get("max_detail_fetches", 60)),
+        auction_alert_hours=float(data.get("auction_alert_hours", 12)),
     )
 
 

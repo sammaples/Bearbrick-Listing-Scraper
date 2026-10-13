@@ -8,7 +8,7 @@ from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 
 from .config import Config
-from .models import Contents, Listing, Source, Status, Verdict
+from .models import Contents, Listing, ListingType, Source, Status, Verdict
 from .rules import could_match, evaluate
 from .sources import buyee, ebay, mercari_us
 from .sources.base import SourceRun
@@ -35,7 +35,16 @@ class ScanResult:
     sources: list[SourceRun]
     new: list[Judged] = field(default_factory=list)
     dropped: list[Judged] = field(default_factory=list)
+    alerts: list[Judged] = field(default_factory=list)  # due a phone alert now
     judged: int = 0
+
+
+def alert_due(listing: Listing, auction_hours: float) -> bool:
+    """Auctions alert only near the end, when the current bid means something."""
+    if listing.listing_type is not ListingType.AUCTION:
+        return True
+    left = listing.hours_left()
+    return left is None or left <= auction_hours
 
 
 def _analysis_text(listing: Listing) -> str:
@@ -143,6 +152,12 @@ async def run_scan(cfg: Config) -> ScanResult:
                 event = store.save(run_id, listing, contents, verdict)
                 result.judged += 1
                 judged = Judged(listing, contents, verdict)
+                if (
+                    verdict.status is not Status.REJECT
+                    and not store.was_notified(listing.key)
+                    and alert_due(listing, cfg.auction_alert_hours)
+                ):
+                    result.alerts.append(judged)
                 if event == "new":
                     result.new.append(judged)
                 elif event == "dropped":

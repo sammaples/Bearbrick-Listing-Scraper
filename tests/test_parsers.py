@@ -116,3 +116,12 @@ def test_buyee_condition_layouts():
 def test_truncated_original_title_dropped():
     assert buyee._distinct_original("BE@RBRICK 100%", "BE@RBRICK 100% 400% SPIDER-MAN") is None
     assert buyee._distinct_original("ベアブリック 400%", "Bearbrick 400%") == "ベアブリック 400%"
+
+
+def test_buyee_time_remaining_to_timestamp():
+    from datetime import datetime, timezone
+
+    now = datetime(2026, 10, 13, 9, 0, tzinfo=timezone.utc)
+    assert buyee.ends_at_from_remaining("5 hour(s)", now) == "2026-10-13T14:00+00:00"
+    assert buyee.ends_at_from_remaining("2 day(s)", now) == "2026-10-15T09:00+00:00"
+    assert buyee.ends_at_from_remaining("", now) is None

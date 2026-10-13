@@ -10,6 +10,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .models import Listing
 from .scan import Judged, ScanResult
 
 CSS = """
@@ -50,8 +51,9 @@ def _e(s) -> str:
 def _type_label(listing: dict) -> str:
     if listing["listing_type"] == "auction":
         bits = ["Auction"]
-        if listing.get("ends_at"):
-            bits.append(f"ends {listing['ends_at']}")
+        left = Listing.from_dict(listing).hours_left()
+        if left is not None:
+            bits.append(f"ends in {left:.0f}h" if left < 48 else f"ends in {left / 24:.0f}d")
         if listing.get("bid_count") is not None:
             bits.append(f"{listing['bid_count']} bids")
         return " · ".join(bits)
@@ -167,4 +169,5 @@ def text_summary(result: ScanResult) -> str:
         lines.append(f"  [{v.status.value}] {total} / cap ${v.cap_usd:g}  {j.listing.title[:70]}  {j.listing.url}")
     if result.dropped:
         lines.append(f"Dropped out: {len(result.dropped)}")
+    lines.append(f"Alerts due (auctions only within the alert window): {len(result.alerts)}")
     return "\n".join(lines)
