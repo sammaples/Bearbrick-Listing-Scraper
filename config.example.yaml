@@ -29,7 +29,7 @@ sources:
     queries: ["bearbrick 400%", "be@rbrick 400%", "bearbrick 1000%", "bearbrick 100% lot", "bearbrick 100% 400%"]
   mercari_us:
     enabled: true
-    queries: ["bearbrick 400%", "bearbrick 1000%", "bearbrick lot"]
+    queries: ["bearbrick 400%", "be@rbrick 400%", "bearbrick 100% 400%", "bearbrick 1000%", "bearbrick lot"]
   buyee_yahoo:              # Yahoo Auctions Japan
     enabled: true
     pages: 1

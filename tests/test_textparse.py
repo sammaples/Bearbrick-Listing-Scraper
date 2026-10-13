@@ -86,3 +86,9 @@ def test_two_piece_set_count_is_the_set_itself():
 def test_plus_n_items_are_extras_not_more_400s():
     c = a("BE@RBRICK 400%スパイダーマンHappyくじSP賞TYPE-A➕3点")
     assert c.sets_400 == 1 and not c.confident
+
+
+def test_sizeless_lot_assumed_100_and_flagged():
+    c = a("Bearbrick lot of 3")
+    assert (c.loose_100, c.confident) == (3, False)
+    assert a("Bearbrick Will Sweeney bag sealed").is_empty
