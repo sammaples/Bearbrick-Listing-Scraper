@@ -31,9 +31,11 @@ def main() -> None:
     if public_log:
         for s in result.sources:
             print(f"{s.name}: {'ok' if s.ok else 'PROBLEM'}, {s.found} listings. {s.message}".rstrip())
-        print(f"{result.judged} checked, {len(result.new)} new, {len(result.dropped)} dropped, {alerts} alerts sent")
+        print(f"{result.judged} checked, {len(result.new)} new, {len(result.dropped)} dropped, "
+              f"{result.photo_checks} photo checks, {alerts} alerts sent")
     else:
         print(text_summary(result))
+        print(f"Photo checks: {result.photo_checks}")
         print(f"Alerts sent: {alerts}")
         print(f"Report: {path}")
 

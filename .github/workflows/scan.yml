@@ -24,6 +24,7 @@ jobs:
       SCOUT_DATA_KEY: ${{ secrets.SCOUT_DATA_KEY }}
       PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
       PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       # This repo is public, so its Actions logs are too: print counts only.
       SCOUT_PUBLIC_LOG: "1"
     steps:

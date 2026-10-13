@@ -6,6 +6,7 @@ price only). Buyee prints a USD conversion next to every yen price; we use it.
 
 from __future__ import annotations
 
+import asyncio
 import re
 import urllib.parse
 from datetime import datetime, timedelta, timezone
@@ -17,6 +18,8 @@ from .base import SourceRun, dedupe
 from .browser import fetch_html, looks_blocked
 
 BASE = "https://buyee.jp"
+# Seconds to wait before each try; Buyee answers 503 when it wants us to slow down.
+RETRY_WAITS = (0, 20, 60)
 
 
 def _text(node) -> str:
@@ -190,11 +193,15 @@ async def search(ctx, source: Source, queries: list[str], pages: int) -> SourceR
     seen: dict[str, Listing] = {}
     for q in queries:
         for p in range(1, pages + 1):
-            status, html, page = await fetch_html(ctx, build(q, p), settle_ms=4000)
-            await page.close()
+            for wait in RETRY_WAITS:
+                await asyncio.sleep(wait)
+                status, html, page = await fetch_html(ctx, build(q, p), settle_ms=4000)
+                await page.close()
+                if not looks_blocked(status, html):
+                    break
             if looks_blocked(status, html):
                 run.ok = False
-                run.message = f"blocked (HTTP {status})"
+                run.message = f"blocked (HTTP {status}) after {len(RETRY_WAITS)} tries"
                 break
             items = parse(html)
             for it in items:
