@@ -26,7 +26,8 @@ BASE = "https://www.mercari.com"
 
 
 def search_url(query: str) -> str:
-    return f"{BASE}/search/?{urllib.parse.urlencode({'keyword': query})}"
+    # sortBy=2 = newest first, so fresh listings are always on the first screen.
+    return f"{BASE}/search/?{urllib.parse.urlencode({'keyword': query, 'sortBy': 2})}"
 
 
 def parse_search(html: str) -> list[Listing]:
@@ -113,40 +114,52 @@ def parse_item(html: str, item_id: str) -> dict:
     }
 
 
-async def _warm_search(ctx, url: str) -> str:
+async def _warm_up(ctx) -> None:
     _, _, home = await fetch_html(ctx, BASE + "/", settle_ms=10000)
     await home.close()
+
+
+async def _search_page(ctx, url: str) -> str:
     status, html, page = await fetch_html(ctx, url, settle_ms=5000)
-    if looks_blocked(status, html):
+    try:
+        if looks_blocked(status, html):
+            raise SourceBlocked(f"HTTP {status}")
+        # Results lazy-load on scroll (about 28 per search).
+        for _ in range(4):
+            await page.mouse.wheel(0, 3000)
+            await page.wait_for_timeout(1200)
+        html = await page.content()
+    finally:
         await page.close()
-        raise SourceBlocked(f"HTTP {status}")
-    # Results lazy-load on scroll.
-    for _ in range(4):
-        await page.mouse.wheel(0, 4000)
-        await page.wait_for_timeout(1200)
-    html = await page.content()
-    await page.close()
+    if "data-testid=\"ProductThumbWrapper\"" not in html and "No results" not in html:
+        # Page shell loaded but the results request was challenged.
+        raise SourceBlocked("results did not load")
     return html
 
 
 async def search(queries: list[str], attempts: int = 3) -> SourceRun:
+    """One warmed-up browser for all queries; a fresh one after a block."""
     run = SourceRun(Source.MERCARI_US.label)
     seen: dict[str, Listing] = {}
-    for q in queries:
-        last_err = None
-        for _ in range(attempts):
-            try:
-                async with browser_context() as ctx:
-                    html = await _warm_search(ctx, search_url(q))
+    pending = list(queries)
+    for _ in range(attempts):
+        if not pending:
+            break
+        async with browser_context() as ctx:
+            await _warm_up(ctx)
+            retry = []
+            for q in pending:
+                try:
+                    html = await _search_page(ctx, search_url(q))
+                except SourceBlocked:
+                    retry.append(q)
+                    continue
                 for it in parse_search(html):
                     seen.setdefault(it.source_id, it)
-                last_err = None
-                break
-            except SourceBlocked as e:
-                last_err = e
-        if last_err:
-            run.ok = False
-            run.message = f'blocked by Cloudflare on "{q}" ({last_err})'
+            pending = retry
+    if pending:
+        run.ok = False
+        run.message = f"blocked by Cloudflare on {len(pending)} of {len(queries)} searches"
     run.listings = list(seen.values())
     run.found = len(run.listings)
     return run

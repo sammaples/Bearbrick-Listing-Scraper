@@ -135,10 +135,16 @@ def analyze(title: str, description: str | None, exclude_keywords: list[str]) ->
     bulk = bool(BULK_RE.search(t_title))
     is_set = bool(SET_RE.search(t_title))
 
+    assumed_size = False
     if not sizes and SERIES_RE.search(t_title):
         # Blind-box series figures ("Series 45") are 100% unless stated.
         sizes = {100}
         c.notes.append("size assumed 100% (series figure)")
+    elif not sizes and (bulk or generic_qty):
+        # Size-less lots ("Bearbrick lot of 3") are nearly always 100% figures.
+        sizes = {100}
+        assumed_size = True
+        c.notes.append("size assumed 100% (lot without a size)")
 
     if not sizes:
         c.notes.append("no size (100%/400%/1000%) in title")
@@ -182,7 +188,7 @@ def analyze(title: str, description: str | None, exclude_keywords: list[str]) ->
         c.confident = False
         c.notes.append("mixed sizes: counts need checking")
 
-    if extras:
+    if extras or assumed_size:
         c.confident = False
         c.notes.append("listing includes extra items of unknown kind")
     if not c.confident:
