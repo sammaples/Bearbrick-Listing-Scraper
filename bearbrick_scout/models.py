@@ -55,6 +55,7 @@ class Listing:
     ends_at: str | None = None  # ISO 8601 UTC timestamp
     seller: str | None = None
     detail_loaded: bool = False
+    photo_check: dict | None = None  # vision.PhotoCheck result, once checked
 
     @property
     def key(self) -> str:
@@ -81,7 +82,7 @@ class Listing:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Listing":
-        d = dict(d)
+        d = {k: v for k, v in d.items() if k in cls.__dataclass_fields__}
         d["source"] = Source(d["source"])
         d["listing_type"] = ListingType(d["listing_type"])
         return cls(**d)

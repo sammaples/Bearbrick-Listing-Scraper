@@ -42,6 +42,8 @@ class Config:
     report_path: str = "out/report.html"
     max_detail_fetches: int = 60  # per source per run, keeps runs short
     auction_alert_hours: float = 12  # alert on auctions only once they end within this
+    vision_model: str = "claude-opus-5-5"
+    max_photo_checks: int = 30  # per run; bounds the API bill
 
 
 def _source(raw: dict | None) -> SourceConfig:
@@ -76,6 +78,8 @@ def parse_config(data: dict) -> Config:
         report_path=data.get("report_path", "out/report.html"),
         max_detail_fetches=int(data.get("max_detail_fetches", 60)),
         auction_alert_hours=float(data.get("auction_alert_hours", 12)),
+        vision_model=(data.get("photo_check") or {}).get("model", "claude-opus-5-5"),
+        max_photo_checks=int((data.get("photo_check") or {}).get("max_per_run", 30)),
     )
 
 

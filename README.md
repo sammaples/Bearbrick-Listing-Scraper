@@ -21,6 +21,10 @@ Be@rbrick 100% / 400% / 1000% listings within budget, and reports new matches.
    - Auctions use the current bid.
 4. **Box check** for every 400% and 1000%: confirmed from the description
    (`with box`, `箱あり`, `未開封`, ...). `no box` / `箱なし` / `本体のみ` rejects.
+   If the text doesn't settle it (or the piece count), and `ANTHROPIC_API_KEY`
+   is set, up to 8 photos go to Claude, which reports whether each box is
+   visible and how many figures of each size are for sale. Each listing is
+   checked once; `photo_check.max_per_run` caps the cost.
 5. Result: **Match**, **Needs a look** (box unconfirmed, piece count unclear,
    shipping unknown), or rejected.
 
@@ -39,6 +43,13 @@ python -m bearbrick_scout
 
 The report is written to `out/report.html`; listing history lives in
 `data/scout.db` (SQLite).
+
+To compare models on real listings before choosing one (prints each model's
+answers side by side with its cost):
+
+```bash
+python -m bearbrick_scout.compare_models --limit 20
+```
 
 ## Configuration
 
@@ -65,6 +76,7 @@ tab). It skips quietly until these repository secrets exist
 | `SCOUT_DATA_KEY` | any long random password; encrypts the saved listing history |
 | `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET` | eBay keys (optional until approved) |
 | `PUSHOVER_APP_TOKEN`, `PUSHOVER_USER_KEY` | Pushover alerts (optional) |
+| `ANTHROPIC_API_KEY` | photo checks for box / piece count (optional) |
 | `SCRAPER_PROXY` | optional proxy URL if Mercari US blocks GitHub's servers |
 
 This repo is public, and so are its Actions logs, so the workflow prints only
@@ -74,7 +86,7 @@ reach you through Pushover (and later the private app), never the logs.
 ## Roadmap
 
 1. ✅ Scanners + budget rules + report
-2. Photo checks (box visible, piece counts) with Claude vision
+2. ✅ Photo checks (box visible, piece counts) with Claude vision
 3. ✅ Hourly GitHub Actions schedule + Pushover alerts
 4. Private home-screen app
 5. Approve-to-buy
